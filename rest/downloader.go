@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 )
 
 type Error struct {
@@ -22,7 +24,13 @@ func Download(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, Error{"File extension is not provided"})
 	}
 
-	filePath := fmt.Sprintf("%s/%s", StoragePath, helper.SplitFileNameToPath(fileName[0:32], ext))
+	cleanFilename := strings.Trim(strings.TrimSuffix(fileName, filepath.Ext(fileName)), " ")
+
+	if len(cleanFilename) < 32 {
+		return c.JSON(http.StatusBadRequest, Error{"Invalid file name"})
+	}
+
+	filePath := fmt.Sprintf("%s/%s", StoragePath, helper.SplitFileNameToPath(cleanFilename, ext))
 
 	if !exists(filePath) {
 		return c.JSON(http.StatusBadRequest, Error{"File is not exists"})

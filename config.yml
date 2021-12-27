@@ -10,6 +10,13 @@ server:
   port: 80
   uploader:
     maxSize: 50
+    contexts:
+      - context: thumbnal
+        width: 320
+        height: 0
+      - context: article
+        width: 640
+        height: 0
     allow:
       - image/png
       - image/jpg

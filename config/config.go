@@ -6,12 +6,19 @@ import (
 	"os"
 )
 
+type Context struct {
+	Context string `json:"context"`
+	Width   uint   `json:"width"`
+	Height  uint   `json:"height"`
+}
+
 type Config struct {
 	Server struct {
 		Port     string `yaml:"port"`
 		Uploader struct {
-			MaxSize int64    `yaml:"maxSize"`
-			Allow   []string `yaml:"allow"`
+			MaxSize  int64     `yaml:"maxSize"`
+			Allow    []string  `yaml:"allow"`
+			Contexts []Context `json:"contexts"`
 		} `yaml:"uploader"`
 	} `yaml:"server"`
 	Exporter struct {

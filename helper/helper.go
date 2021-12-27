@@ -16,11 +16,13 @@ func GetDestinationDir(fileName string) string {
 }
 
 func GetDestinationWithFile(fileName string, ext string) string {
+	return SplitFileNameToPath(HashFileName(fileName), ext)
+}
+
+func HashFileName(fileName string) string {
 	encoder := md5.New()
 	encoder.Write([]byte(fileName))
-	tmp := hex.EncodeToString(encoder.Sum(nil))
-
-	return SplitFileNameToPath(tmp, ext)
+	return hex.EncodeToString(encoder.Sum(nil))
 }
 
 func SplitFileNameToPath(fileName string, ext string) string {

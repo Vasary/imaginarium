@@ -32,6 +32,11 @@ func init() {
 	for _, v := range cfg.Server.Uploader.Allow {
 		rest.SupportedTypes[v] = true
 	}
+
+	rest.Contexts = make(map[string]rest.Size)
+	for _, v := range cfg.Server.Uploader.Contexts {
+		rest.Contexts[v.Context] = rest.Size{Height: v.Height, Width: v.Width}
+	}
 }
 
 func main() {
