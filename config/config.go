@@ -16,7 +16,7 @@ type Config struct {
 	Server struct {
 		Port     string `yaml:"port"`
 		Uploader struct {
-			MaxSize  int64     `yaml:"maxSize"`
+			MaxSize  string    `yaml:"maxSize"`
 			Allow    []string  `yaml:"allow"`
 			Contexts []Context `json:"contexts"`
 		} `yaml:"uploader"`

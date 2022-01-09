@@ -1,21 +1,14 @@
 package rest
 
 import (
+	"encoding/base64"
 	"errors"
-	"fmt"
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/gommon/random"
-	"github.com/nfnt/resize"
-	"image"
-	"image/jpeg"
-	_ "image/jpeg"
-	_ "image/png"
-	"imaginarium/helper"
-	"io"
+	"imaginarium/resizer"
+	"imaginarium/uploader"
 	"mime/multipart"
 	"net/http"
-	"os"
-	"path"
+	"path/filepath"
 	"strings"
 )
 
@@ -41,92 +34,63 @@ func Upload(c echo.Context) error {
 	files := form.File["image"]
 	var images []map[string][]Image
 
-	err = c.Request().ParseMultipartForm(FileSize << 20)
-	if err != nil {
-		return c.String(http.StatusForbidden, "File size is too big")
-	}
-
 	for _, file := range files {
 		result, err := uploadFile(file)
 
 		if err != nil {
-			fmt.Println(err)
+			return c.String(http.StatusBadRequest, "Unsupported file type")
 		}
 
 		images = append(images, result)
+	}
+
+	if len(images) == 0 {
+		return c.String(http.StatusBadRequest, "There are no files were provided")
 	}
 
 	return c.JSON(http.StatusCreated, images)
 }
 
 func uploadFile(file *multipart.FileHeader) (map[string][]Image, error) {
-	all := make(map[string][]Image)
+	collection := make(map[string][]Image)
 
 	src, err := file.Open()
-
 	if err != nil {
-		return all, err
+		return collection, err
 	}
 
-	buff := make([]byte, 512)
-	_, err = src.Read(buff)
-	src.Seek(0, 0)
-	fileType := http.DetectContentType(buff)
+	bytes := make([]byte, file.Size)
+	_, err = src.Read(bytes)
+	fileType := strings.Split(http.DetectContentType(bytes), ";")[0]
+
+	if err := src.Close(); err != nil {
+		return nil, err
+	}
+
+	if "text/plain" == fileType {
+		decoded, err := base64.StdEncoding.DecodeString(string(bytes))
+		if err != nil {
+			panic(err)
+		}
+
+		fileType = http.DetectContentType(decoded)
+		bytes = decoded
+	}
 
 	if _, ok := SupportedTypes[fileType]; !ok {
-		return all, errors.New("unsupported file type")
+		return collection, errors.New("unsupported file type")
 	}
 
-	tmpFileName := random.String(32)
-	ext := path.Ext(file.Filename)
-
-	workDir := fmt.Sprintf("%s/%s", StoragePath, helper.GetDestinationDir(tmpFileName))
-	helper.CreateDir(workDir)
-
-	uploadedFilePath := fmt.Sprintf("%s/%s", StoragePath, helper.GetDestinationWithFile(tmpFileName, ext))
-
-	dst, err := os.Create(uploadedFilePath)
-	if err != nil {
-		return all, err
-	}
-
-	if _, err = io.Copy(dst, src); err != nil {
-		return all, err
-	}
-
-	src.Close()
-	dst.Close()
+	uploadedFile := uploader.Upload(bytes, file.Filename)
 
 	var results []Image
-	results = append(results, Image{fmt.Sprintf("%s%s", helper.HashFileName(tmpFileName), ext), "original"})
+
+	results = append(results, Image{filepath.Base(uploadedFile.Name()), "original"})
 	for key, context := range Contexts {
-		img, _ := createResizedCopies(workDir, fmt.Sprintf("%s%s", helper.HashFileName(tmpFileName), ext), key, context)
-		results = append(results, img)
+		img := resizer.CreateResizedCopies(uploadedFile, key, context.Width, context.Height)
+		results = append(results, Image{filepath.Base(img.Name()), key})
 	}
 
-	all[file.Filename] = results
-	return all, nil
-}
-
-func createResizedCopies(filePath string, fileName string, context string, size Size) (Image, error) {
-	input, _ := os.Open(fmt.Sprintf("%s/%s", filePath, fileName))
-	defer input.Close()
-
-	ext := path.Ext(fileName)
-	cleanedFileName := strings.TrimSuffix(fileName, ext)
-
-	output, _ := os.Create(fmt.Sprintf("%s/%s_%s%s", filePath, cleanedFileName, context, path.Ext(fileName)))
-	defer output.Close()
-
-	input.Seek(0, 0)
-	src, _, err := image.Decode(input)
-
-	if err != nil {
-		return Image{}, err
-	}
-
-	newImage := resize.Resize(size.Width, size.Height, src, resize.Lanczos3)
-	jpeg.Encode(output, newImage, nil)
-
-	return Image{fmt.Sprintf("%s_%s%s", cleanedFileName, context, ext), context}, nil
+	collection[file.Filename] = results
+	return collection, nil
 }
